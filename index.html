@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>sudoku</title>
+    <style>
+        body {background-color: gainsboro}
+        table#sudoku {background-color: white; margin-left: auto; margin-right: auto}
+        table#sudoku {border-collapse: collapse; table-layout: fixed; cursor: pointer; border: solid gray 1px}
+        table#sudoku > tbody > tr > td {border: dotted lightgray 1px; padding: 0}
+        table#sudoku > tbody > tr > td {min-width: 66px; height: 66px; line-height: 66px}
+        table#sudoku > tbody > tr > td {font-size: 58px; font-family: 'courier', monospace}
+        table#sudoku > tbody > tr > td {text-align: center; vertical-align: middle}
+        table#sudoku > tbody > tr > td.r {border-right: solid darkgray 2px}
+        table#sudoku > tbody > tr.b > td {border-bottom: solid darkgray 2px}
+
+        table#sudoku > tbody > tr > td.base {background-color: #e1e1e1; cursor: default}
+        table#sudoku > tbody > tr > td.error {color: red}
+
+        table#sudoku > tbody > tr > td.resolved {color: blue; cursor: default}
+        table#sudoku > tbody > tr > td.resolved.error {color: #ea1dff}
+        table#sudoku > tbody > tr > td.committed {cursor: default}
+        table#sudoku > tbody > tr > td.base.related {background-color: #e1e1c8}
+        table#sudoku > tbody > tr > td.related {background-color: rgba(255, 255, 224, 0.5)}
+
+        div#toolbar {margin-bottom: 4px; text-align: center}
+        div#toolbar button {font-size: 1em}
+
+        table.candidateSample {width: 66px; height: 66px}
+        table.candidateSample {border-collapse: collapse; table-layout: fixed}
+        table.candidateSample td {border: 0; padding: 0}
+        table.candidateSample td {width: 22px; height: 22px; line-height: 22px}
+        table.candidateSample td {font-size: 22px; font-family: 'courier', monospace}
+        table.candidateSample td {text-align: center; vertical-align: middle}
+        table.candidateSample td {color: transparent; cursor: default}
+        table.candidateSample td.possible {color: lightgray; cursor: pointer}
+        table.candidateSample td.possible:hover {background-color: blue; color: white; font-weight: bold}
+        table.candidateSample td.most-possible {color: black; background-color: rgba(194, 254, 232, 0.26)}
+        table.candidateSample td.selected {font-weight: bold; color: black; background-color: #eaff0b}
+        table.candidateSample td.possible.excluded {color: transparent; background-color: transparent}
+
+        div.dialog {position: fixed; top: 0; left:0; background-color: gainsboro; border: solid black 3px}
+        div.dialog {z-index: 1; min-width: 300px}
+        div.dialog .content {padding-top: 4px; padding-bottom: 4px}
+        div.dialog .title {background-color: dodgerblue; color: white; padding-left: 2px; cursor: pointer}
+        div.dialog .title {height: 1.7em; line-height: 1.7em; font-size: 1em}
+        div.dialog .title > *{margin: 0}
+
+        div#dlgLoadData.dialog > .content button {margin: 1px}
+        div#dlgLoadData.dialog > .content button.selected {background-color: blue; color: white}
+
+        div#dlgSaveData.dialog > .content {text-align: center; line-height: 2em}
+
+        span.separator {background-color: #16222c; width: 3px; height: 1em; display: inline-block; vertical-align: text-bottom}
+
+        label.checkbox {font-size: 1em; height: 1em; line-height: 1em; vertical-align: text-bottom; cursor: pointer}
+        label.checkbox input {vertical-align: text-bottom; cursor: pointer}
+        label.checkbox:not([disabled]):hover {color: darkblue; font-weight: bold}
+        label.checkbox[disabled] {cursor: default}
+
+        div#mask { display: none; cursor: wait; z-index: 100;
+            position: fixed; top: 0; left: 0; height: 100%; width: 100%;
+            background-color: #000; opacity: 0.2; filter: alpha(opacity = 0.2);}
+
+        button {cursor: pointer; font-size: 1em}
+        button:not([disabled]):hover {color: darkblue; font-weight: bold}
+        button[disabled] {cursor: default}
+        .hidden {display:none}
+        .right {float: right}
+
+    </style>
+</head>
+<body>
+
+<div id="toolbar">
+    <button id="newData">New</button>
+    <button id="openDlgLoadData">Load</button>
+    <button id="openDlgSaveData">Save</button>
+    <span class="separator"></span>
+    <button id="undo">&lt;</button>
+    <button id="redo">&gt;</button>
+    <span class="separator"></span>
+    <label class="checkbox"><input id="toggleHint" type="checkbox" checked>Hint</label>
+    <button id="answer">Answer</button>
+</div>
+
+<table id="sudoku">
+    <tr><td></td><td></td><td class="r"></td><td></td><td></td><td class="r"></td><td></td><td></td><td></td></tr>
+    <tr><td></td><td></td><td class="r"></td><td></td><td></td><td class="r"></td><td></td><td></td><td></td></tr>
+    <tr class="b"><td></td><td></td><td class="r"></td><td></td><td></td><td class="r"></td><td></td><td></td><td></td></tr>
+    <tr><td></td><td></td><td class="r"></td><td></td><td></td><td class="r"></td><td></td><td></td><td></td></tr>
+    <tr><td></td><td></td><td class="r"></td><td></td><td></td><td class="r"></td><td></td><td></td><td></td></tr>
+    <tr class="b"><td></td><td></td><td class="r"></td><td></td><td></td><td class="r"></td><td></td><td></td><td></td></tr>
+    <tr><td></td><td></td><td class="r"></td><td></td><td></td><td class="r"></td><td></td><td></td><td></td></tr>
+    <tr><td></td><td></td><td class="r"></td><td></td><td></td><td class="r"></td><td></td><td></td><td></td></tr>
+    <tr><td></td><td></td><td class="r"></td><td></td><td></td><td class="r"></td><td></td><td></td><td></td></tr>
+</table>
+
+<div class="hidden">
+    <table class="candidateSample">
+        <tr><td>1</td><td>2</td><td>3</td></tr>
+        <tr><td>4</td><td>5</td><td>6</td></tr>
+        <tr><td>7</td><td>8</td><td>9</td></tr>
+    </table>
+</div>
+
+<div id="dlgLoadData" class="hidden dialog">
+    <div class="title">Load data<button class="right">X</button></div>
+    <div class="content">
+    </div>
+</div>
+
+<div id="dlgSaveData" class="hidden dialog">
+    <div class="title">Save data as<button class="right">X</button></div>
+    <div class="content">
+        <div>
+            <label>Name:<input></label>
+        </div>
+        <button>Save</button>
+    </div>
+</div>
+
+<div id="mask"></div>
+
+<script src="jquery-3.1.1/jquery.min.js"></script>
+<script>
+  'use strict';
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  //Sudoku Lib
+  var runtimeSudoku = []; //array of number or number Set
+  var relatedIndexes = []; //array of Set which contains related cell indexes
+  init_relative_indexes();
+  //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  var $sudoku = $('table#sudoku');
+  var $cells = $('table#sudoku > tbody > tr > td');
+  var candidateSample = $('table.candidateSample')[0].outerHTML;
+
+  var cfg = localStorage; //only store string values
+  cfg[':Most Difficult'] = cfg[':Most Difficult'] || "8,,,,,,,,,,,3,6,,,,,,,7,,,9,,2,,,,5,,,,7,,,,,,,,4,5,7,,,,,,1,,,,3,,,,1,,,,,6,8,,,8,5,,,,1,,,9,,,,,4,,";
+
+  var committedSudoku = localStorage; //string array
+  var undoAry = [];
+  var redoAry = [];
+
+  var maxDisplayCandidates = 9;
+
+  $cells.prop('tabIndex', 0).each(function (i, cell) {
+    cell._i = i;
+  });
+
+  if (cfg.showHint === undefined) {
+    cfg.showHint = 'true';
+  }
+  $('#toggleHint').prop('checked', cfg.showHint);
+
+  //load and normalize last-used data and compare with last data set if specified
+  loadBaseSudoku(cfg.dataName, {forInit: true});
+
+  function setCellValue(cell, s, opt) {
+    var i = cell._i;
+
+    if (!(opt && opt.no_history)) {
+      undoAry.push({i: i, _: committedSudoku[i], s: s});
+      redoAry = [];
+      saveUndoRedoUpdateUI();
+    }
+
+    if (s) {
+      committedSudoku[i] = s;
+      if (cfg.showHint) {
+        runtimeSudoku[i] = Number(s).valueOf();
+      }
+    } else {
+      committedSudoku[i] = '';
+      if (cfg.showHint) {
+        runtimeSudoku[i] = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      }
+    }
+    $(cell).text(committedSudoku[i]);
+
+    if (opt && opt.sync) {
+      claimRuntimeSudoku(i);
+      drawAll();
+    } else {
+      setTimeout(drawAll);
+    }
+  }
+
+  function drawAll() {
+    if (cfg.showHint) {
+      resolve_all_rewind();
+      drawRuntimeSudoku();
+    } else {
+      drawCommittedSudoku();
+    }
+  }
+
+  function drawRuntimeSudoku() {
+    //find most easy-guessed cell's candidate count
+    var minCandidates = 9;
+    for (var i = 0; i < 81; i++) {
+      var n = runtimeSudoku[i];
+      if (n instanceof Set && n.size < minCandidates) {
+        minCandidates = n.size;
+      }
+    }
+
+    $cells.each(function (i, cell) {
+      var n = runtimeSudoku[i];
+      if (n instanceof Set) {
+        $(cell).removeClass('resolved').removeClass('error');
+        if (n.size <= maxDisplayCandidates) {
+          var $subCells = $(cell).html(candidateSample).find('td');
+          var style = minCandidates < 9 && n.size <= minCandidates ? 'most-possible' : '';
+          for (var _n of n) {
+            $($subCells[_n - 1]).addClass('possible').addClass(style);
+          }
+        } else {
+          $(cell).text('');
+        }
+      } else {
+        if (committedSudoku[i]) {
+          $(cell).text(n).removeClass('resolved').addClass('committed');
+        } else {
+          $(cell).text(n).addClass('resolved').removeClass('committed');
+        }
+        if (check_single(i)) {
+          $(cell).removeClass('error');
+        } else {
+          $(cell).addClass('error');
+        }
+      }
+    });
+  }
+
+  function claimRuntimeSudoku(i) {
+    var hasError;
+    var n = runtimeSudoku[i];
+    if (n instanceof Set) {
+      for (var ri of relatedIndexes[i]) {
+        var rn = runtimeSudoku[ri];
+        if (rn instanceof Set) {
+          if (rn.delete(n)) {
+            if (rn.size === 1) {
+              runtimeSudoku[ri] = Array.from(rn)[0];
+            }
+          }
+        } else {
+          if (rn === n) {
+            hasError = true;
+          }
+        }
+      }
+    }
+    return !hasError;
+  }
+
+  function drawCommittedSudoku() {
+    $cells.each(function (i, cell) {
+      var s = committedSudoku[i];
+      var hasError;
+      for (var ri of relatedIndexes[i]) {
+        if (committedSudoku[ri] === s) {
+          hasError = true;
+          break;
+        }
+      }
+      if (hasError) {
+        $(cell).addClass('error');
+      } else {
+        $(cell).removeClass('error');
+      }
+    });
+  }
+
+  function reloadRuntimeSudokuFromCommitted() {
+    for (var i = 0; i < 81; i++) {
+      if (committedSudoku[i]) {
+        runtimeSudoku[i] = Number(committedSudoku[i]).valueOf();
+      } else {
+        runtimeSudoku[i] = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      }
+    }
+    var hasError;
+    for (var i = 0; i < 81; i++) {
+      if (!claimRuntimeSudoku(i)) {
+        hasError = true;
+      }
+    }
+    return !hasError;
+  }
+
+  function saveUndoRedoUpdateUI(opt) {
+    if (!(opt && opt.forInit)) {
+      cfg['undo'] = JSON.stringify(undoAry);
+      cfg['redo'] = JSON.stringify(redoAry);
+    }
+    $('#undo').prop('disabled', !undoAry.length);
+    $('#redo').prop('disabled', !redoAry.length);
+  }
+
+  function loadBaseSudoku(dataName, opt) {
+    cfg.dataName = dataName || '';
+
+    var baseSudoku = (cfg[':' + dataName] || '').split(',');
+
+    $cells.each(function (i, cell) {
+      var s = opt && opt.forInit ? committedSudoku[i] : baseSudoku[i];
+      setCellValue(cell, s, {no_history: true});
+
+      if (baseSudoku[i]) {
+        $(cell).addClass('base');
+      } else {
+        $(cell).removeClass('base');
+      }
+    });
+
+    if (opt && opt.forInit) {
+      undoAry = JSON.parse(cfg['undo'] || '[]');
+      redoAry = JSON.parse(cfg['redo'] || '[]');
+    } else {
+      undoAry.length = redoAry.length = 0;
+    }
+    saveUndoRedoUpdateUI(opt);
+  }
+
+  function importData(txt) {
+    if (txt) {
+      loadBaseSudoku('');
+//      var ii = 0;
+//            txt.split(/\r?\n/).slice(0,81).forEach(function(lineStr, row) {
+//                lineStr.split(/\s*\t\s*|\s*,\s*|\s/).slice(0,81-i).forEach(function (s, i) {
+//                    s = s.trim();
+//                    setCellValue(i, s>='1'&&s<='9' ? s : '';
+//                });
+//                ii+=9;
+//            });
+    }
+  }
+
+
+  $('#newData').on('click', function () {
+    loadBaseSudoku('');
+  });
+
+  //dialog of load data
+  (function () {
+    var $dlg = $('#dlgLoadData');
+
+    $('#openDlgLoadData').on('click', function () {
+      var html_allDataNames = Object.keys(localStorage).filter(function (key) {
+        return key[0] === ':' && cfg[key];
+      }).map(function (key) {
+        var dataName = key.slice(1);
+        var $button = $('<button></button>').text(dataName);
+        if (dataName === cfg.dataName) {
+          $button.addClass('selected');
+        }
+        return $button[0].outerHTML;
+      }).join('');
+
+      $dlg.find('.content').html(html_allDataNames || 'No data');
+
+      $dlg.show();
+
+      setTimeout(function () {
+        $dlg.find('.selected').focus();
+      });
+    });
+
+    $dlg.on('click', '.content button', function () {
+      var dataName = $(this).text();
+
+      loadBaseSudoku(dataName);
+
+      $dlg.hide();
+    });
+  })();
+
+  //dialog of save data
+  (function () {
+    var $dlg = $('#dlgSaveData');
+
+    $('#openDlgSaveData').on('click', function () {
+      $dlg.find('input').val(cfg.dataName || new Date().toLocaleString());
+      $dlg.show();
+    });
+
+    $dlg.on('click', '.content button', function () {
+      var dataName = $dlg.find('input').val().trim();
+      if (dataName) {
+        cfg[':' + dataName] = [].join.call(committedSudoku, ',');
+
+        $dlg.hide();
+      }
+    }).on('focusin', 'input', function () {
+      setTimeout(this.select.bind(this));
+    });
+  })();
+
+  $('.dialog').on('click', '.title', function (evt) {
+    $(evt.delegateTarget).hide();
+  });
+
+  window.addEventListener('paste', function (e) {
+    var txt = e.clipboardData.getData('text');
+    importData(txt);
+  });
+
+  $('#undo').on('click', function () {
+    var action = undoAry.pop();
+    if (action) {
+      redoAry.push(action);
+      reloadRuntimeSudokuFromCommitted();
+      setCellValue($cells[action.i], action._, {no_history: true});
+      saveUndoRedoUpdateUI();
+    }
+  });
+
+  $('#redo').on('click', function () {
+    var action = redoAry.pop();
+    if (action) {
+      undoAry.push(action);
+      reloadRuntimeSudokuFromCommitted();
+      setCellValue($cells[action.i], action.s, {no_history: true});
+      saveUndoRedoUpdateUI();
+    }
+  });
+
+  $('#toggleHint').on('change', function () {
+    cfg.showHint = $(this).prop('checked') || '';
+    if (cfg.showHint) {
+      reloadRuntimeSudokuFromCommitted();
+      resolve_all_rewind();
+      drawRuntimeSudoku();
+    } else {
+      $cells.each(function (i, cell) {
+        $(cell).removeClass('resolved').removeClass('committed');
+        if (!committedSudoku[i]) {
+          $(cell).text('');
+        }
+      });
+      drawCommittedSudoku();
+    }
+  });
+
+  $('#answer').on('click', function () {
+    cfg.showHint = true;
+    $('#toggleHint').prop('checked', true);
+
+    if (reloadRuntimeSudokuFromCommitted()) {
+      $('#mask').show();
+      setTimeout(function () {
+        resolve_all_rewind_guess_repeat();
+        drawRuntimeSudoku();
+        $('#mask').hide();
+      }, 50);
+    } else {
+      drawRuntimeSudoku();
+    }
+  });
+
+  //keyboard input
+  (function () {
+    //handle Z for undo and shift-Z or Y for redo
+    $(document.body).on('keydown', function (evt) {
+      //console.log('keyCode:' + evt.keyCode.toString(16) + ' which:' + evt.which.toString(16) + ' charCode:' + evt.charCode.toString(16) + ' key:' + evt.key);
+      switch (evt.keyCode) {
+        case 0x5a: // Z
+          $(evt.shiftKey ? '#redo' : '#undo').trigger('click');
+          break;
+        case 0x59: // Y
+          $('#redo').trigger('click');
+      }
+    });
+
+    $sudoku.on('keydown', '> tbody > tr > td', function (evt) {
+      var cell = this;
+      //console.log('keyCode:' + evt.keyCode.toString(16) + ' which:' + evt.which.toString(16) + ' charCode:' + evt.charCode.toString(16) + ' key:' + evt.key);
+      switch (evt.keyCode) {
+        case 0x27:
+          return move_focus(cell._i, 'right');
+        case 0x25:
+          return move_focus(cell._i, 'left');
+        case 0x28:
+          return move_focus(cell._i, 'down');
+        case 0x26:
+          return move_focus(cell._i, 'up');
+      }
+
+      if ($(cell).hasClass('base')) {
+        return;
+      }
+      var s = $(cell).text();
+      if (cfg.showHint && s >= '1' && s <= '9') {
+        return;
+      }
+
+      switch (evt.keyCode) {
+        case 0x31: //1
+        case 0x32: //2
+        case 0x33: //3
+        case 0x34: //4
+        case 0x35: //5
+        case 0x36: //6
+        case 0x37: //7
+        case 0x38: //8
+        case 0x39: //9
+          if (cfg.showHint && !runtimeSudoku[cell._i].has(evt.keyCode - 0x30)) {
+            return false;
+          }
+          setCellValue(cell, String.fromCharCode(evt.keyCode), {sync: true});
+          if ($(cell).hasClass('error')) {
+            return false;
+          }
+          return move_focus(cell._i, 'right');
+      }
+
+      if (cfg.showHint) {
+        return;
+      }
+
+      switch (evt.keyCode) {
+        case 0x20: //KEY_CODE_SPACE
+          setCellValue(cell, '');
+          return move_focus(cell._i, evt.shiftKey ? (evt.ctrlKey ? 'up' : 'left') : (evt.ctrlKey ? 'down' : 'right'));
+        case 0x2e: //KEY_CODE_DELETE
+          setCellValue(cell, '');
+          return move_focus(cell._i, evt.shiftKey ? (evt.ctrlKey ? 'up' : 'left') : (evt.ctrlKey ? 'down' : 'right'));
+        case 8: //KEY_CODE_BACKSPACE
+          setCellValue(cell, '');
+          return move_focus(cell._i, evt.shiftKey ? (evt.ctrlKey ? 'down' : 'right') : (evt.ctrlKey ? 'up' : 'left'));
+      }
+    });
+
+    function move_focus(i, direction) {
+      setTimeout(function () {
+        if (direction === 'right')
+          return $($cells[i === 81 - 1 ? 0 : i + 1]).focus();
+        if (direction === 'left')
+          return $($cells[i === 0 ? 81 - 1 : i - 1]).focus();
+        if (direction === 'down')
+          return $($cells[i === 81 - 1 ? 0 : i + 9 < 81 ? i + 9 : i % 9 + 1]).focus();
+        if (direction === 'up')
+          return $($cells[i === 0 ? 81 - 1 : i - 9 >= 0 ? i - 9 : 81 - 9 + i % 9 - 1]).focus();
+      });
+      return false;
+    }
+  })();
+
+  //mouse input
+  (function () {
+    $sudoku.on('mouseenter', '> tbody > tr > td', function () {
+      var cell = this;
+      //console.log('mouseenter ' + cell._i);
+      $(cell).focus();
+    });
+
+    $sudoku.on('click', '> tbody > tr > td', function (evt) {
+      if (this !== evt.target) {
+        return;
+      }
+      var cell = this;
+      //console.log('click ' + cell._i);
+
+      if ($(cell).hasClass('base')) {
+        return;
+      }
+      var s = $(cell).text();
+      if (cfg.showHint && s >= '1' && s <= '9') {
+        return;
+      }
+
+      var $subCells = $(cell).html(candidateSample).find('td');
+
+      if (cfg.showHint) {
+        var n = runtimeSudoku[cell._i];
+        if (n instanceof Set) {
+          for (var _n of n) {
+            $($subCells[_n - 1]).addClass('possible');
+          }
+        }
+      } else {
+        $subCells.addClass('possible');
+        $($subCells[committedSudoku[cell._i] - 1]).addClass('selected');
+      }
+    });
+
+    $sudoku.on('click', '> tbody > tr > td > table > tbody > tr > td.possible', function () {
+      var subCell = this;
+      //console.log('click subCell ' + $(subCell).text());
+      var subTable = subCell.parentNode.parentNode.parentNode;
+      var cell = subTable.parentNode;
+      //console.log(' of Cell ' + cell._i);
+      var s = $(subCell).text();
+
+      if (cfg.showHint) {
+        setCellValue(cell, s, {sync: true});
+      } else {
+        setCellValue(cell, (s === committedSudoku[cell._i] ? '' : s));
+      }
+      return false;
+    });
+  })();
+
+  //visual effect when focus in, show related cells
+  (function () {
+    $sudoku.on('focusin', '> tbody > tr > td', function () {
+      var cell = this;
+      //console.log('focusin ' + cell._i);
+      relatedIndexes[cell._i].forEach(function (ri) {
+        $($cells[ri]).addClass('related');
+      });
+    });
+
+    $sudoku.on('focusout', '> tbody > tr > td', function () {
+      var cell = this;
+      //console.log('focusout ' + cell._i);
+
+      relatedIndexes[cell._i].forEach(function (ri) {
+        $($cells[ri]).removeClass('related');
+      });
+
+      if ($(cell).hasClass('base')) {
+        return;
+      }
+
+      if (cfg.showHint) {
+        if (runtimeSudoku[cell._i] instanceof Set && runtimeSudoku[cell._i].size > maxDisplayCandidates) {
+          $(cell).text('');
+        }
+      } else {
+        $(cell).text(committedSudoku[cell._i]);
+      }
+    });
+
+    $sudoku.on('mouseenter', '> tbody > tr > td > table > tbody > tr > td.possible', function () {
+      if (cfg.showHint) {
+        var subCell = this;
+        //console.log('mouseenter subCell ' + $(subCell).text());
+        var subTable = subCell.parentNode.parentNode.parentNode;
+        var cell = subTable.parentNode;
+        //console.log(' of Cell ' + cell._i);
+        var s = $(subCell).text();
+        var n = Number(s).valueOf();
+
+        relatedIndexes[cell._i].forEach(function (ri) {
+          $($cells[ri]).find('td').eq(n - 1).addClass('excluded');
+        });
+      }
+    });
+
+    $sudoku.on('mouseleave', '> tbody > tr > td > table > tbody > tr > td.possible', function () {
+      if (cfg.showHint) {
+        var subCell = this;
+        //console.log('mouseleave subCell ' + $(subCell).text());
+        var subTable = subCell.parentNode.parentNode.parentNode;
+        var cell = subTable.parentNode;
+        //console.log(' of Cell ' + cell._i);
+
+        relatedIndexes[cell._i].forEach(function (ri) {
+          $($cells[ri]).find('td').removeClass('excluded');
+        });
+      }
+    });
+  })();
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  //Sudoku Lib
+
+  function resolve_all_rewind_guess_repeat() {
+    if (resolve_all_rewind() === 'error') {
+      return 'error';
+    }
+
+    var resolvedCount = 0;
+    var minCandidateCount = 9 + 1;
+    var m_i;
+    for (var i = 0; i < 81; i++) {
+      var n = runtimeSudoku[i];
+      if (n instanceof Set) {
+        if (n.size < minCandidateCount) {
+          minCandidateCount = n.size;
+          m_i = i;
+        }
+      } else {
+        resolvedCount++;
+      }
+    }
+    if (resolvedCount === 81) {
+      return 'resolved';
+    }
+
+    var backup = runtimeSudoku.map(function (n) {
+      return (n instanceof Set) ? Array.from(n) : n;
+    });
+
+    for (var _n of runtimeSudoku[m_i]) {
+      runtimeSudoku[m_i] = _n;
+
+      if (resolve_all_rewind_guess_repeat() === 'resolved') {
+        return 'resolved';
+      }
+
+      runtimeSudoku = backup.map(function (n) {
+        return (Array.isArray(n)) ? new Set(n) : n;
+      });
+    }
+
+    return 'impossible';
+  }
+
+  function resolve_all_rewind() {
+    var better = false;
+    for (; ;) {
+      var res = resolve_all_no_rewind();
+      if (res === 'error') {
+        return 'error';
+      } else if (res === 'better') {
+        better = true;
+      } else {
+        return better ? 'better' : 'no change';
+      }
+    }
+  }
+
+  function resolve_all_no_rewind() {
+    var better;
+    var resolvedCount = 0;
+    var hasError;
+
+    for (var i = 0; i < 81; i++) {
+      if (runtimeSudoku[i] instanceof Set) {
+        var res = resolve_single(i);
+        if (res === 'resolved') {
+          resolvedCount++;
+        } else if (res === 'error') {
+          hasError = true;
+        } else if (res === 'better') {
+          better = true;
+        }
+      } else {
+        if (check_single(i)) {
+          resolvedCount++;
+        } else {
+          hasError = true;
+        }
+      }
+    }
+    if (resolvedCount === 9 * 9) {
+      return 'resolved';
+    }
+    return hasError ? 'error' : better ? 'better' : 'no change';
+  }
+
+  function resolve_single(i) {
+    var set = runtimeSudoku[i];
+    var better;
+
+    for (var ri of relatedIndexes[i]) {
+      if (set.delete(runtimeSudoku[ri])) {
+        better = true;
+        if (set.size === 1) {
+          runtimeSudoku[i] = Array.from(set)[0];
+          return 'resolved';
+        }
+      }
+    }
+    return better ? 'better' : 'no change';
+  }
+
+  function check_single(i) {
+    var n = runtimeSudoku[i];
+
+    for (var ri of relatedIndexes[i]) {
+      var rn = runtimeSudoku[ri];
+      if (rn === n) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  //init related indexes of each cell
+  function init_relative_indexes() {
+    for (var row = 0; row < 9; row++) {
+      for (var col = 0; col < 9; col++) {
+        var set = relatedIndexes[row * 9 + col] = new Set();
+        var r, c;
+
+        for (c = 0; c < 9; c++) {
+          if (c !== col) {
+            set.add(row * 9 + c);
+          }
+        }
+
+        for (r = 0; r < 9; r++) {
+          if (r !== row) {
+            set.add(r * 9 + col);
+          }
+        }
+
+        var block_row = row - row % 3;
+        var block_col = col - col % 3;
+        for (r = block_row; r < block_row + 3; r++) {
+          for (c = block_col; c < block_col + 3; c++) {
+            if (r !== row || c !== col) {
+              set.add(r * 9 + c);
+            }
+          }
+        }
+      }
+    }
+  }
+</script>
+
+</body>
+</html>
